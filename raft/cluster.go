@@ -10,6 +10,6 @@ func CreateCluster(n int) {
 
 	// iterate n times, create n servers, a
 	for i := 0; i < n; i++ {
-		cluster.servers[i] = CreateNewServer()
+		cluster.servers[i] = NewServer(i, n)
 	}
 }
