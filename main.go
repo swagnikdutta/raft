@@ -1,6 +1,8 @@
 package main
 
-import "github.com/swagnikdutta/raft/raft"
+import (
+	"github.com/swagnikdutta/raft/raft"
+)
 
 func main() {
 	// create cluster with 3 servers

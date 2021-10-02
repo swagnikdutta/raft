@@ -1,7 +1,9 @@
 package raft
 
 import (
+	"fmt"
 	"math/rand"
+	"sync"
 	"time"
 )
 
@@ -12,11 +14,19 @@ type Server struct {
 	timer *time.Timer
 }
 
-func randomizedTimeout() time.Duration {
-	return time.Duration(2 + rand.Intn(6))
+func randomizedTimeout(serverId int) time.Duration {
+	interval := 5 + rand.Intn(6) // interval 5-10 seconds
+	fmt.Printf("Timeout set for server %d is %d seconds\n", serverId, interval)
+	return time.Duration(interval)
 }
 
-func NewServer(serverId, serverCount int) *Server {
+func handleElectionTimeout(server *Server, wg *sync.WaitGroup) {
+	defer wg.Done()
+	<-server.timer.C
+	fmt.Println("Timeout happended for server: ", server.id)
+}
+
+func NewServer(serverId, serverCount int, wg *sync.WaitGroup) *Server {
 	server := new(Server)
 	server.id = serverId
 	for i := 0; i < serverCount; i++ {
@@ -25,6 +35,7 @@ func NewServer(serverId, serverCount int) *Server {
 		}
 	}
 	server.CM = &ConsensusModule{}
-	server.timer = time.NewTimer(randomizedTimeout() * time.Second)
+	server.timer = time.NewTimer(randomizedTimeout(server.id) * time.Second)
+	go handleElectionTimeout(server, wg)
 	return server
 }
