@@ -37,7 +37,9 @@ func NewServer(serverId, serverCount int, wg *sync.WaitGroup) *Server {
 			server.peers = append(server.peers, i)
 		}
 	}
-	server.CM = &ConsensusModule{}
+	server.CM = &ConsensusModule{
+		currentTerm: 1,
+	}
 	server.timer = time.NewTimer(randomizedTimeout(server.id) * time.Second)
 	go handleElectionTimeout(server, wg)
 	return server
