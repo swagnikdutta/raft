@@ -12,6 +12,7 @@ type Server struct {
 	peers []int
 	CM    *ConsensusModule
 	timer *time.Timer
+	state string
 }
 
 func randomizedTimeout(serverId int) time.Duration {
@@ -24,11 +25,13 @@ func handleElectionTimeout(server *Server, wg *sync.WaitGroup) {
 	defer wg.Done()
 	<-server.timer.C
 	fmt.Println("Timeout happended for server: ", server.id)
+	HandleStateTransition(server, CANDIDATE)
 }
 
 func NewServer(serverId, serverCount int, wg *sync.WaitGroup) *Server {
 	server := new(Server)
 	server.id = serverId
+	server.state = FOLLOWER
 	for i := 0; i < serverCount; i++ {
 		if i != serverId {
 			server.peers = append(server.peers, i)
