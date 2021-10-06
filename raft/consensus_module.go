@@ -6,6 +6,14 @@ type ConsensusModule struct {
 	currentTerm int
 }
 
+// procedures
+type ArgType struct{}
+type ReplyType struct{}
+
+func (cm *ConsensusModule) DoSomething(ArgType, *ReplyType) error {
+	return nil
+}
+
 func StartElections(server *Server) {
 	fmt.Printf("Server with id: %v becomes a Candidate and starting elections\n", server.id)
 	server.CM.currentTerm += 1
