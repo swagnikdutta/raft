@@ -22,8 +22,7 @@ type Server struct {
 }
 
 // methods
-func (s *Server) ConnectToPeers() {
-	fmt.Println("About to connect")
+func (s *Server) ConnectToPeers(peers []*Server) {
 	// For each peer, find out it's server,
 	// From the server object, find the listener and the address where it's listening
 	// Connect on that address, rpc.Dial()

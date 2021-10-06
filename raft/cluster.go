@@ -9,11 +9,32 @@ type Cluster struct {
 	servers []*Server
 }
 
+// methods
+func (c *Cluster) getServerFromId(id int) *Server {
+	var s *Server
+
+	for i := 0; i < len(c.servers); i++ {
+		if c.servers[i].id == id {
+			s = c.servers[i]
+			break
+		}
+	}
+	return s
+}
+
 func (c *Cluster) connect(n int) {
 	for i := 0; i < n; i++ {
-		c.servers[i].ConnectToPeers()
+		var peers []*Server
+
+		for id := 0; id < len(c.servers[i].peers); id++ {
+			peer := c.getServerFromId(id)
+			peers = append(peers, peer)
+		}
+		c.servers[i].ConnectToPeers(peers)
 	}
 }
+
+// Functions
 
 func CreateCluster(n int) {
 	cluster := &Cluster{}
