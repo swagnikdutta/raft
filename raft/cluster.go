@@ -1,7 +1,6 @@
 package raft
 
 import (
-	"fmt"
 	"sync"
 )
 
@@ -10,7 +9,7 @@ type Cluster struct {
 }
 
 // methods
-func (c *Cluster) getServerFromId(id int) *Server {
+func (c *Cluster) findServerById(id string) *Server {
 	var s *Server
 
 	for i := 0; i < len(c.servers); i++ {
@@ -22,15 +21,26 @@ func (c *Cluster) getServerFromId(id int) *Server {
 	return s
 }
 
+func (c *Cluster) populatePeers(n int) {
+	for i := 0; i < n; i++ {
+		for j := 0; j < n; j++ {
+			if c.servers[i].id != c.servers[j].id {
+				c.servers[i].peerIds = append(c.servers[i].peerIds, c.servers[j].id)
+			}
+		}
+	}
+}
+
 func (c *Cluster) connect(n int) {
 	for i := 0; i < n; i++ {
-		var peers []*Server
+		var peerServers []*Server
+		server := c.servers[i]
 
-		for id := 0; id < len(c.servers[i].peers); id++ {
-			peer := c.getServerFromId(id)
-			peers = append(peers, peer)
+		for j := 0; j < len(server.peerIds); j++ {
+			peerId := server.peerIds[j]
+			peerServers = append(peerServers, c.findServerById(peerId))
 		}
-		c.servers[i].ConnectToPeers(peers)
+		c.servers[i].ConnectToPeers(peerServers)
 	}
 }
 
@@ -46,14 +56,10 @@ func CreateCluster(n int) {
 		wg.Add(1)
 		go func(i int) {
 			defer wg.Done()
-			cluster.servers[i] = NewServer(i, n, &wg)
+			cluster.servers[i] = NewServer(n, &wg)
 		}(i)
 	}
 	wg.Wait()
-	fmt.Println("came here")
-	// Now i know for sure that all the clusters have been created.
-	// Write code for connecting the peers to one another
-	// If I am creating a cluster, I cannot return a disconnected cluster, so all code about connecting the peers to one another
-	// must go in this file itself.
+	cluster.populatePeers(n)
 	cluster.connect(n)
 }

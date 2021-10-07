@@ -8,14 +8,16 @@ import (
 	"net/rpc"
 	"sync"
 	"time"
+
+	"github.com/google/uuid"
 )
 
 type Server struct {
-	id    int
-	peers []int
-	CM    *ConsensusModule
-	timer *time.Timer
-	state string
+	id      string
+	peerIds []string
+	CM      *ConsensusModule
+	timer   *time.Timer
+	state   string
 
 	listener  net.Listener
 	rpcServer *rpc.Server
@@ -23,9 +25,11 @@ type Server struct {
 
 // methods
 func (s *Server) ConnectToPeers(peers []*Server) {
-	// For each peer, find out it's server,
-	// From the server object, find the listener and the address where it's listening
-	// Connect on that address, rpc.Dial()
+	// Find listener address of each of the peer server and connect with them
+	for i := 0; i < len(peers); i++ {
+		// connect server (s.id) with server (peers[i].id) which is listening on peer[i].listener.Addr()
+		// client, err := s.rpcServer.Dial(peers[i].listener.Addr().Network())
+	}
 }
 
 func randomizedTimeout(serverId int) time.Duration {
@@ -41,22 +45,17 @@ func randomizedTimeout(serverId int) time.Duration {
 // 	HandleStateTransition(server, CANDIDATE)
 // }
 
-func NewServer(serverId, serverCount int, wg *sync.WaitGroup) *Server {
+func NewServer(serverCount int, wg *sync.WaitGroup) *Server {
 	server := new(Server)
-	server.id = serverId
+	server.id = uuid.New().String()
 	server.state = FOLLOWER
-	for i := 0; i < serverCount; i++ {
-		if i != serverId {
-			server.peers = append(server.peers, i)
-		}
-	}
 	server.CM = &ConsensusModule{
 		currentTerm: 1,
 	}
 
 	// Attaching RPC server
-	server.rpcServer = rpc.NewServer()
-	server.rpcServer.Register(server.CM)
+	// server.rpcServer = rpc.NewServer()
+	// server.rpcServer.Register(server.CM)
 	// server.rpcServer.Register(server)  // can it do that?
 
 	// Attaching listener
@@ -70,7 +69,6 @@ func NewServer(serverId, serverCount int, wg *sync.WaitGroup) *Server {
 	// Start listening for incoming connections
 	go func() {
 		for {
-			fmt.Println("Listening ...")
 			conn, err := server.listener.Accept()
 			if err != nil {
 				fmt.Println("Error listening for incoming connections")
