@@ -31,12 +31,9 @@ type Server struct {
 func (s *Server) ConnectToPeers(peers []*Server) {
 	for i := 0; i < len(peers); i++ {
 		peer := peers[i]
-
 		if s.peerClients[peer.id] == nil {
 			listenerAddress := peer.listener.Addr()
-			fmt.Println("Connecting with peer server")
 			client, err := rpc.Dial(listenerAddress.Network(), listenerAddress.String())
-
 			if err != nil {
 				fmt.Println("Error connecting to peer", err)
 			}
