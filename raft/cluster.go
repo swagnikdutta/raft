@@ -8,7 +8,7 @@ type Cluster struct {
 	servers []*Server
 }
 
-// methods
+// Methods
 func (c *Cluster) findServerById(id string) *Server {
 	var s *Server
 

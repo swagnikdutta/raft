@@ -3,7 +3,6 @@ package raft
 import (
 	"fmt"
 	"log"
-	"math/rand"
 	"net"
 	"net/rpc"
 	"sync"
@@ -21,48 +20,41 @@ type Server struct {
 
 	listener  net.Listener
 	rpcServer *rpc.Server
+
+	peerClients map[string]*rpc.Client
+
+	wg sync.WaitGroup
 }
 
-// methods
+// Methods
+
 func (s *Server) ConnectToPeers(peers []*Server) {
-	// Find listener address of each of the peer server and connect with them
 	for i := 0; i < len(peers); i++ {
-		// connect server (s.id) with server (peers[i].id) which is listening on peer[i].listener.Addr()
-		// client, err := s.rpcServer.Dial(peers[i].listener.Addr().Network())
-		client, err := rpc.Dial("tcp", peers[i].listener.Addr().String())
-		if err != nil {
-			fmt.Println("Okay I fucked up", err)
+		peer := peers[i]
+
+		if s.peerClients[peer.id] == nil {
+			listenerAddress := peer.listener.Addr()
+			fmt.Println("Connecting with peer server")
+			client, err := rpc.Dial(listenerAddress.Network(), listenerAddress.String())
+
+			if err != nil {
+				fmt.Println("Error connecting to peer", err)
+			}
+			s.peerClients[peer.id] = client
 		}
-		_ = client
-		fmt.Printf("Received client after dialing: %+v\n", client)
 	}
 }
 
-func randomizedTimeout(serverId int) time.Duration {
-	interval := 5 + rand.Intn(6) // interval 5-10 seconds
-	fmt.Printf("Timeout set for server %d is %d seconds\n", serverId, interval)
-	return time.Duration(interval)
-}
-
-// func handleElectionTimeout(server *Server, wg *sync.WaitGroup) {
-// 	defer wg.Done()
-// 	<-server.timer.C
-// 	fmt.Println("Timeout happended for server: ", server.id)
-// 	HandleStateTransition(server, CANDIDATE)
-// }
+// Functions
 
 func NewServer(serverCount int, wg *sync.WaitGroup) *Server {
 	server := new(Server)
 	server.id = uuid.New().String()
 	server.state = FOLLOWER
+	server.peerClients = make(map[string]*rpc.Client)
 	server.CM = &ConsensusModule{
 		currentTerm: 1,
 	}
-
-	// Attaching RPC server
-	// server.rpcServer = rpc.NewServer()
-	// server.rpcServer.Register(server.CM)
-	// server.rpcServer.Register(server)  // can it do that?
 
 	// Attaching listener
 	var err error
@@ -73,24 +65,24 @@ func NewServer(serverCount int, wg *sync.WaitGroup) *Server {
 	}
 
 	// Start listening for incoming connections
+	server.wg.Add(1)
 	go func() {
+		defer server.wg.Done()
+
 		for {
-			conn, err := server.listener.Accept()
+			conn, err := server.listener.Accept() // blocks
+			fmt.Println("Got a connection", conn)
 			if err != nil {
 				fmt.Println("Error listening for incoming connections")
 				log.Fatal(err)
 			}
-			// what to do with this conn object?
-			_ = conn
-
-			fmt.Printf("Got a connection request: %+v\n", conn)
+			// server.wg.Add(1)
+			// go func() {
+			// 	defer server.wg.Done()
+			// 	server.rpcServer.ServeConn(conn)
+			// }()
 		}
 	}()
 
-	// I think the timer should be set only when the peers are connected to one another.
-	// first we must connect the peers, so that when the follower becomes a candidate, it can start the elections, i.e send RPCs immediately
-	//
-	// server.timer = time.NewTimer(randomizedTimeout(server.id) * time.Second)
-	// go handleElectionTimeout(server, wg)
 	return server
 }
