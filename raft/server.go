@@ -29,6 +29,12 @@ func (s *Server) ConnectToPeers(peers []*Server) {
 	for i := 0; i < len(peers); i++ {
 		// connect server (s.id) with server (peers[i].id) which is listening on peer[i].listener.Addr()
 		// client, err := s.rpcServer.Dial(peers[i].listener.Addr().Network())
+		client, err := rpc.Dial("tcp", peers[i].listener.Addr().String())
+		if err != nil {
+			fmt.Println("Okay I fucked up", err)
+		}
+		_ = client
+		fmt.Printf("Received client after dialing: %+v\n", client)
 	}
 }
 
@@ -76,6 +82,8 @@ func NewServer(serverCount int, wg *sync.WaitGroup) *Server {
 			}
 			// what to do with this conn object?
 			_ = conn
+
+			fmt.Printf("Got a connection request: %+v\n", conn)
 		}
 	}()
 
