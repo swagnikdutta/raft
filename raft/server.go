@@ -1,7 +1,9 @@
 package raft
 
 import (
+	"fmt"
 	"log"
+	"math/rand"
 	"net"
 	"net/rpc"
 	"sync"
@@ -42,7 +44,25 @@ func (s *Server) ConnectToPeers(peers []*Server) {
 	}
 }
 
+func (s *Server) SetTimer(wg *sync.WaitGroup) {
+	s.timer = time.NewTimer(randomizedTimeout(s.id) * time.Second)
+	go s.HandleElectionTimeout(wg)
+}
+
+func (s *Server) HandleElectionTimeout(wg *sync.WaitGroup) {
+	defer wg.Done()
+	<-s.timer.C
+
+	fmt.Println("Timeout happended for server: ", s.id)
+}
+
 // Functions
+
+func randomizedTimeout(serverId string) time.Duration {
+	interval := 5 + rand.Intn(6) // interval 5-10 seconds
+	fmt.Printf("Timeout set for server %v is %v seconds\n", serverId, interval)
+	return time.Duration(interval)
+}
 
 func generateNewId() string {
 	return uuid.New().String()

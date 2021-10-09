@@ -1,6 +1,7 @@
 package raft
 
 import (
+	"fmt"
 	"sync"
 )
 
@@ -44,6 +45,19 @@ func (c *Cluster) connect(n int) {
 	}
 }
 
+func (c *Cluster) init(n int) {
+	c.populatePeers(n)
+	c.connect(n)
+	fmt.Println("All peers connected!")
+
+	var wg sync.WaitGroup
+	wg.Add(n)
+	for i := 0; i < len(c.servers); i++ {
+		c.servers[i].SetTimer(&wg) // validate this once
+	}
+	wg.Wait()
+}
+
 // Functions
 
 func CreateCluster(n int) {
@@ -60,6 +74,5 @@ func CreateCluster(n int) {
 		}(i)
 	}
 	wg.Wait()
-	cluster.populatePeers(n)
-	cluster.connect(n)
+	cluster.init(n)
 }
