@@ -1,7 +1,6 @@
 package raft
 
 import (
-	"fmt"
 	"log"
 	"net"
 	"net/rpc"
@@ -36,7 +35,7 @@ func (s *Server) ConnectToPeers(peers []*Server) {
 			client, err := rpc.Dial(listenerAddress.Network(), listenerAddress.String())
 
 			if err != nil {
-				fmt.Println("Error connecting to peer", err)
+				log.Fatal(err)
 			}
 			s.peerClients[peer.id] = client
 		}
@@ -62,7 +61,6 @@ func NewServer(serverCount int, wg *sync.WaitGroup) *Server {
 	// Attaching listener
 	server.listener, err = net.Listen("tcp", ":0")
 	if err != nil {
-		fmt.Println("Error while attaching listener on the server")
 		log.Fatal(err)
 	}
 
@@ -75,7 +73,6 @@ func NewServer(serverCount int, wg *sync.WaitGroup) *Server {
 			conn, err := server.listener.Accept() // TODO: close the connection at some point
 
 			if err != nil {
-				fmt.Println("Error listening for incoming connections")
 				log.Fatal(err)
 			}
 
