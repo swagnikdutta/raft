@@ -44,11 +44,15 @@ func (s *Server) ConnectToPeers(peers []*Server) {
 
 // Functions
 
+func generateNewId() string {
+	return uuid.New().String()
+}
+
 func NewServer(serverCount int, wg *sync.WaitGroup) *Server {
 	var err error
 
 	server := new(Server)
-	server.id = uuid.New().String()
+	server.id = generateNewId()
 	server.state = FOLLOWER
 	server.peerClients = make(map[string]*rpc.Client)
 	server.CM = &ConsensusModule{
@@ -75,7 +79,6 @@ func NewServer(serverCount int, wg *sync.WaitGroup) *Server {
 			if err != nil {
 				log.Fatal(err)
 			}
-
 			// handle the connection in a new goroutine and go back to accepting new incoming connections.
 			server.wg.Add(1)
 			go func(c net.Conn) {
