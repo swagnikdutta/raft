@@ -7,10 +7,3 @@ const (
 	FOLLOWER              = "follower"
 	CANDIDATE             = "candidate"
 )
-
-func HandleStateTransition(server *Server, nextState string) {
-	if nextState == CANDIDATE {
-		server.state = nextState
-		StartElections(server)
-	}
-}

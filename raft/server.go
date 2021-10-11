@@ -15,7 +15,7 @@ import (
 type Server struct {
 	id      string
 	peerIds []string
-	CM      *ConsensusModule
+	cm      *ConsensusModule
 	timer   *time.Timer
 	state   string
 
@@ -54,6 +54,7 @@ func (s *Server) HandleElectionTimeout(wg *sync.WaitGroup) {
 	<-s.timer.C
 
 	fmt.Println("Timeout happended for server: ", s.id)
+	s.cm.ChangeState(CANDIDATE)
 }
 
 // Functions
@@ -74,13 +75,10 @@ func NewServer(serverCount int, wg *sync.WaitGroup) *Server {
 	server := new(Server)
 	server.id = generateNewId()
 	server.state = FOLLOWER
-	server.peerClients = make(map[string]*rpc.Client)
-	server.CM = &ConsensusModule{
-		currentTerm: 1,
-	}
 
+	server.peerClients = make(map[string]*rpc.Client)
 	server.rpcServer = rpc.NewServer()
-	// server.rpcServer.Register(server.CM)
+	// server.rpcServer.Register(server.cm)
 
 	// Attaching listener
 	server.listener, err = net.Listen("tcp", ":0")
@@ -108,5 +106,6 @@ func NewServer(serverCount int, wg *sync.WaitGroup) *Server {
 		}
 	}()
 
+	server.cm = NewConsensusModule(server)
 	return server
 }

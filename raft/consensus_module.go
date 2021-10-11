@@ -3,23 +3,34 @@ package raft
 import "fmt"
 
 type ConsensusModule struct {
+	server      *Server
 	currentTerm int
 }
 
-// procedures
-type ArgType struct{}
-type ReplyType struct{}
-
-func (cm *ConsensusModule) DoSomething(ArgType, *ReplyType) error {
-	return nil
+// Methods
+func (cm *ConsensusModule) ChangeState(nextState string) {
+	cm.server.state = nextState
+	fmt.Printf("Server %v became a Candidate\n", cm.server.id)
+	cm.startElections()
 }
 
-func StartElections(server *Server) {
-	fmt.Printf("Server with id: %v becomes a Candidate and starting elections\n", server.id)
-	server.CM.currentTerm += 1
+func (cm *ConsensusModule) startElections() {
+	// this server wants to be the next leader
+	fmt.Printf("Server %v is starting elections\n", cm.server.id)
+}
 
-	// Next steps
-	// the candidate will be sending request vote RPCs to it's peers
-	// check if it has received the majority of votes
-	// but first all peers need to be connected to one another, they need to listen for rpc calls.
+// procedures
+type Request struct {
+}
+type Response struct {
+}
+
+// Functions
+
+func NewConsensusModule(server *Server) *ConsensusModule {
+	cm := &ConsensusModule{
+		currentTerm: 1,
+		server:      server,
+	}
+	return cm
 }
