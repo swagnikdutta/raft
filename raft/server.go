@@ -60,7 +60,7 @@ func (s *Server) HandleElectionTimeout(wg *sync.WaitGroup) {
 // Functions
 
 func randomizedTimeout(serverId string) time.Duration {
-	interval := 5 + rand.Intn(6) // interval 5-10 seconds
+	interval := 5 + rand.Intn(2)
 	fmt.Printf("Timeout set for server %v is %v seconds\n", serverId, interval)
 	return time.Duration(interval)
 }
@@ -78,7 +78,6 @@ func NewServer(serverCount int, wg *sync.WaitGroup) *Server {
 
 	server.peerClients = make(map[string]*rpc.Client)
 	server.rpcServer = rpc.NewServer()
-	// server.rpcServer.Register(server.cm)
 
 	// Attaching listener
 	server.listener, err = net.Listen("tcp", ":0")
@@ -107,5 +106,6 @@ func NewServer(serverCount int, wg *sync.WaitGroup) *Server {
 	}()
 
 	server.cm = NewConsensusModule(server)
+	server.rpcServer.Register(server.cm)
 	return server
 }

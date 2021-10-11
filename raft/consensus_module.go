@@ -10,7 +10,7 @@ type ConsensusModule struct {
 }
 
 type RequestVoteArgs struct {
-	candidateId string
+	CandidateId string
 }
 type RequestVoteReply struct{}
 
@@ -28,21 +28,26 @@ func (cm *ConsensusModule) ChangeState(nextState string) {
 func (cm *ConsensusModule) startElections() {
 	fmt.Printf("Server %v is starting elections\n", cm.server.id)
 	args := RequestVoteArgs{
-		candidateId: cm.server.id,
+		CandidateId: cm.server.id,
 	}
 	reply := RequestVoteReply{}
 
-	for _, peerClient := range cm.server.peerClients {
-		fmt.Printf("%v\n", peerClient)
-		// Sending Request vote RPC to each peer client
-		peerClient.Call("ConsensusModule.RequestVote", args, reply)
+	fmt.Printf("Server %v sending RequestVote RPC\n", cm.server.id)
+
+	for peerId, peerClient := range cm.server.peerClients {
+		fmt.Printf("\tTo %v\n", peerId)
+		err := peerClient.Call("ConsensusModule.RequestVote", args, &reply)
+		if err != nil {
+			fmt.Println("Error occurred while sending Request Vote RPC")
+			fmt.Println(err)
+		}
 	}
 }
 
 // procedures
 
 func (cm *ConsensusModule) RequestVote(args RequestVoteArgs, reply *RequestVoteReply) error {
-	fmt.Printf("Server %v is about to send Request RPC votes\n", cm.server.id)
+	fmt.Printf("Received RequestVote RPC from %v\n", args.CandidateId)
 	return nil
 }
 
