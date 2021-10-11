@@ -21,25 +21,25 @@ type Server struct {
 
 	listener    net.Listener           // to listen for incoming connections
 	rpcServer   *rpc.Server            // to server incoming connections
-	peerClients map[string]*rpc.Client // a client object for each peer it wants to communicate with
+	peerClients map[string]*rpc.Client // a client object for each peer server it wants to communicate with
 
 	wg sync.WaitGroup
 }
 
 // Methods
 
-func (s *Server) ConnectToPeers(peers []*Server) {
-	for i := 0; i < len(peers); i++ {
-		peer := peers[i]
+func (s *Server) ConnectToPeers(peerServers []*Server) {
+	for i := 0; i < len(peerServers); i++ {
+		peerServer := peerServers[i]
 
-		if s.peerClients[peer.id] == nil {
-			listenerAddress := peer.listener.Addr()
+		if s.peerClients[peerServer.id] == nil {
+			listenerAddress := peerServer.listener.Addr()
 			client, err := rpc.Dial(listenerAddress.Network(), listenerAddress.String())
 
 			if err != nil {
 				log.Fatal(err)
 			}
-			s.peerClients[peer.id] = client
+			s.peerClients[peerServer.id] = client
 		}
 	}
 }
