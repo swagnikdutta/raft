@@ -6,11 +6,12 @@ import (
 	"math/rand"
 	"net"
 	"net/rpc"
+	"strconv"
 	"sync"
 	"time"
-
-	"github.com/google/uuid"
 )
+
+var uniq int = 100
 
 type Server struct {
 	id      string
@@ -60,13 +61,15 @@ func (s *Server) HandleElectionTimeout(wg *sync.WaitGroup) {
 // Functions
 
 func randomizedTimeout(serverId string) time.Duration {
-	interval := 5 + rand.Intn(2)
+	interval := 1 + rand.Intn(2)
 	fmt.Printf("Timeout set for server %v is %v seconds\n", serverId, interval)
 	return time.Duration(interval)
 }
 
 func generateNewId() string {
-	return uuid.New().String()
+	uniq += 1
+	return strconv.Itoa(uniq)
+	// return uuid.New().String()
 }
 
 func NewServer(serverCount int, wg *sync.WaitGroup) *Server {
