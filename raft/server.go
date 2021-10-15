@@ -29,6 +29,11 @@ type Server struct {
 
 // Methods
 
+func (s *Server) log(format string, args ...interface{}) {
+	format = fmt.Sprintf("[ %v ] ", s.id) + format
+	log.Printf(format, args...)
+}
+
 func (s *Server) ConnectToPeers(peerServers []*Server) {
 	for i := 0; i < len(peerServers); i++ {
 		peerServer := peerServers[i]
@@ -46,7 +51,9 @@ func (s *Server) ConnectToPeers(peerServers []*Server) {
 }
 
 func (s *Server) SetTimer(wg *sync.WaitGroup) {
-	s.timer = time.NewTimer(randomizedTimeout(s.id) * time.Second)
+	interval := 3 + rand.Intn(3)
+	s.timer = time.NewTimer(time.Duration(interval) * time.Second)
+	s.log("Timeout set for %v seconds", interval)
 	go s.HandleElectionTimeout(wg)
 }
 
@@ -54,17 +61,11 @@ func (s *Server) HandleElectionTimeout(wg *sync.WaitGroup) {
 	defer wg.Done()
 	<-s.timer.C
 
-	fmt.Println("Timeout happended for server: ", s.id)
+	s.log("Timeout expired!")
 	s.cm.ChangeState(CANDIDATE)
 }
 
 // Functions
-
-func randomizedTimeout(serverId string) time.Duration {
-	interval := 1 + rand.Intn(2)
-	fmt.Printf("Timeout set for server %v is %v seconds\n", serverId, interval)
-	return time.Duration(interval)
-}
 
 func generateNewId() string {
 	uniq += 1

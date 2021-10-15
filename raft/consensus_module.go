@@ -2,6 +2,7 @@ package raft
 
 import (
 	"fmt"
+	"log"
 )
 
 type ConsensusModule struct {
@@ -20,21 +21,26 @@ type RequestVoteReply struct {
 }
 
 // Methods
+func (cm *ConsensusModule) log(format string, args ...interface{}) {
+	format = fmt.Sprintf("[ %v ] ", cm.server.id) + format
+	log.Printf(format, args...)
+}
+
 func (cm *ConsensusModule) ChangeState(nextState string) {
 	cm.server.state = nextState
 
 	if nextState == CANDIDATE {
-		fmt.Printf("Server %v became a Candidate\n", cm.server.id)
+		cm.log("Becoming a candidate")
 		cm.currentTerm += 1        // use mutex
 		cm.votedFor = cm.server.id // use mutex
 		cm.startElections()        // should I wait here? why wait for election to be over?
 	} else if nextState == string(LEADER) {
-		fmt.Printf("Server %v became a Leader\n", cm.server.id)
+		cm.log("Becoming a leader")
 	}
 }
 
 func (cm *ConsensusModule) startElections() {
-	fmt.Printf("Server %v is starting elections\n", cm.server.id)
+	cm.log("Starting elections")
 	args := RequestVoteArgs{
 		CandidateId: cm.server.id,
 		Term:        cm.currentTerm,
@@ -44,16 +50,14 @@ func (cm *ConsensusModule) startElections() {
 	}
 	cm.votesInFavour += 1 // use mutex
 
-	fmt.Printf("Server %v sending RequestVote RPC\n", cm.server.id)
 	// this cannot be synchronous, cannot wait for the reply of one peer before requesting another peer
 	for peerId, peerClient := range cm.server.peerClients {
-		_ = peerId
+		cm.log("Sending RequestVote RPC to %v", peerId)
 		err := peerClient.Call("ConsensusModule.RequestVote", args, &reply)
 		if err != nil {
-			fmt.Println("Error occurred while sending Request Vote RPC")
-			fmt.Println(err)
+			cm.log("Error happened while sending RequestVote RPC. Error: %+v", err)
 		}
-		fmt.Printf("Response from peer %v is %v\n", peerId, reply.Response)
+		cm.log("Response from peer %v is %v", peerId, reply.Response)
 
 		if reply.Response == 1 {
 			cm.votesInFavour += 1 // use mutex
@@ -61,7 +65,7 @@ func (cm *ConsensusModule) startElections() {
 	}
 
 	if hasMajorityVotes(cm) {
-		fmt.Printf("Server %v will become leader\n", cm.server.id)
+		cm.log("Will become leader")
 		cm.ChangeState(string(LEADER)) // again, should I wait here? or make it run in a separate goroutine
 	}
 }
@@ -69,7 +73,7 @@ func (cm *ConsensusModule) startElections() {
 // procedures
 
 func (cm *ConsensusModule) RequestVote(args RequestVoteArgs, reply *RequestVoteReply) error {
-	fmt.Printf("Server %v received RequestVote RPC from %v\n", cm.server.id, args.CandidateId)
+	cm.log("Received RequestVote RPC from %v", args.CandidateId)
 
 	// this is where I need a mutex, so that it doesn't vote 2 members
 	// add additional checks here, if the term is valid.
