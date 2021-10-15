@@ -5,13 +5,15 @@ import (
 )
 
 type ConsensusModule struct {
-	server      *Server
-	currentTerm int
-	votedFor    interface{}
+	server        *Server
+	currentTerm   int
+	votedFor      interface{}
+	votesInFavour int // not sure if this should be a part of the state
 }
 
 type RequestVoteArgs struct {
 	CandidateId string
+	Term        int
 }
 type RequestVoteReply struct {
 	Response int
@@ -23,9 +25,9 @@ func (cm *ConsensusModule) ChangeState(nextState string) {
 
 	if nextState == CANDIDATE {
 		fmt.Printf("Server %v became a Candidate\n", cm.server.id)
-		cm.currentTerm += 1
-		cm.votedFor = cm.server.id
-		cm.startElections()
+		cm.currentTerm += 1        // use mutex
+		cm.votedFor = cm.server.id // use mutex
+		cm.startElections()        // should I wait here? why wait for election to be over?
 	} else if nextState == string(LEADER) {
 		fmt.Printf("Server %v became a Leader\n", cm.server.id)
 	}
@@ -35,14 +37,15 @@ func (cm *ConsensusModule) startElections() {
 	fmt.Printf("Server %v is starting elections\n", cm.server.id)
 	args := RequestVoteArgs{
 		CandidateId: cm.server.id,
+		Term:        cm.currentTerm,
 	}
 	reply := RequestVoteReply{
 		Response: 0,
 	}
-	votesInFavour := 1 // it voted for itself
+	cm.votesInFavour += 1 // use mutex
 
 	fmt.Printf("Server %v sending RequestVote RPC\n", cm.server.id)
-
+	// this cannot be synchronous, cannot wait for the reply of one peer before requesting another peer
 	for peerId, peerClient := range cm.server.peerClients {
 		_ = peerId
 		err := peerClient.Call("ConsensusModule.RequestVote", args, &reply)
@@ -53,13 +56,13 @@ func (cm *ConsensusModule) startElections() {
 		fmt.Printf("Response from peer %v is %v\n", peerId, reply.Response)
 
 		if reply.Response == 1 {
-			votesInFavour += 1
+			cm.votesInFavour += 1 // use mutex
 		}
 	}
 
-	if hasMajorityVotes(votesInFavour, cm) {
+	if hasMajorityVotes(cm) {
 		fmt.Printf("Server %v will become leader\n", cm.server.id)
-		cm.ChangeState(string(LEADER))
+		cm.ChangeState(string(LEADER)) // again, should I wait here? or make it run in a separate goroutine
 	}
 }
 
@@ -79,15 +82,16 @@ func (cm *ConsensusModule) RequestVote(args RequestVoteArgs, reply *RequestVoteR
 
 // Functions
 
-func hasMajorityVotes(votesInFavour int, cm *ConsensusModule) bool {
-	return 2*votesInFavour > (len(cm.server.peerIds) + 1)
+func hasMajorityVotes(cm *ConsensusModule) bool {
+	return 2*cm.votesInFavour > (len(cm.server.peerIds) + 1)
 }
 
 func NewConsensusModule(server *Server) *ConsensusModule {
 	cm := &ConsensusModule{
-		currentTerm: 1,
-		server:      server,
-		votedFor:    nil,
+		currentTerm:   1,
+		server:        server,
+		votedFor:      nil,
+		votesInFavour: 0,
 	}
 	return cm
 }
