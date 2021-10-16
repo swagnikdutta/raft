@@ -22,7 +22,7 @@ type RequestVoteArgs struct {
 	Term        int
 }
 type RequestVoteReply struct {
-	Response int
+	Granted bool
 }
 
 // Methods
@@ -32,7 +32,9 @@ func (cm *ConsensusModule) log(format string, args ...interface{}) {
 }
 
 func (cm *ConsensusModule) ChangeState(nextState string) {
+	cm.mu.Lock()
 	cm.server.state = nextState
+	cm.mu.Unlock()
 
 	if nextState == CANDIDATE {
 		cm.log("Becoming a candidate")
@@ -47,13 +49,12 @@ func (cm *ConsensusModule) doLeaderThings() {
 	cm.log("Sending heartbeats")
 	cm.mu.Lock()
 	defer cm.mu.Unlock()
+	return
 }
 
 func (cm *ConsensusModule) startElections() {
-	cm.log("Starting elections")
+	cm.log("is starting elections, votes for itself")
 	cm.mu.Lock()
-	// defer cm.mu.Unlock() // this resulted in a lot of problems due to race conditions IMO
-
 	cm.currentTerm += 1
 	cm.votedFor = cm.server.id
 	cm.votesInFavour += 1
@@ -63,7 +64,7 @@ func (cm *ConsensusModule) startElections() {
 		Term:        cm.currentTerm,
 	}
 	reply := RequestVoteReply{
-		Response: 0,
+		Granted: false,
 	}
 
 	for peerId, peerClient := range cm.server.peerClients {
@@ -72,38 +73,37 @@ func (cm *ConsensusModule) startElections() {
 		go func(peerId string, peerClient *rpc.Client, wg *sync.WaitGroup) {
 			defer cm.wg.Done()
 			cm.log("Sending RequestVote RPC to %v", peerId)
-			// this can be made prettier
-			err := peerClient.Call("ConsensusModule.RequestVote", args, &reply)
-			if err != nil {
-				cm.log("Error happened while sending RequestVote RPC. Error: %+v", err)
-			}
-			cm.log("Response from peer %v is %v. Total votes: %v", peerId, reply.Response, cm.votesInFavour)
 
-			if reply.Response == 1 {
-				cm.votesInFavour += 1 // use mutex. But how?
+			if err := peerClient.Call("ConsensusModule.RequestVote", args, &reply); err == nil {
+				if reply.Granted == true {
+					cm.votesInFavour += 1
+				}
+				cm.log("Response from peer %v is %v. Total votes: %v", peerId, reply.Granted, cm.votesInFavour)
 			}
 		}(peerId, peerClient, &cm.wg)
 	}
 
-	cm.wg.Wait() // symbolises that the goroutines are done executing
+	cm.wg.Wait() // we wait till the goroutine is done executing before unlocking the mutex
 	cm.mu.Unlock()
 
 	if hasMajorityVotes(cm) {
 		cm.log("Will become leader")
 		cm.ChangeState(string(LEADER)) // again, should I wait here? or make it run in a separate goroutine
 	}
+	return
 }
 
 // procedures
 
 func (cm *ConsensusModule) RequestVote(args RequestVoteArgs, reply *RequestVoteReply) error {
+	cm.mu.Lock()
+	defer cm.mu.Unlock()
 	cm.log("Received RequestVote RPC from %v", args.CandidateId)
 
-	// this is where I need a mutex, so that it doesn't vote 2 members
 	// add additional checks here, if the term is valid.
 	if cm.votedFor == nil {
 		cm.votedFor = cm.server.id
-		reply.Response = 1
+		reply.Granted = true
 	}
 	return nil
 }
