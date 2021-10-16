@@ -100,7 +100,7 @@ func NewServer(serverCount int, wg *sync.WaitGroup) *Server {
 			if err != nil {
 				log.Fatal(err)
 			}
-			// handle the connection in a new goroutine and go back to accepting new incoming connections.
+			// handling the connection in a new goroutine and go back to accepting new incoming connections.
 			server.wg.Add(1)
 			go func(c net.Conn) {
 				defer server.wg.Done()

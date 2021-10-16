@@ -3,9 +3,14 @@ package raft
 import (
 	"fmt"
 	"log"
+	"net/rpc"
+	"sync"
 )
 
 type ConsensusModule struct {
+	mu sync.Mutex
+	wg sync.WaitGroup
+
 	server        *Server
 	currentTerm   int
 	votedFor      interface{}
@@ -31,16 +36,28 @@ func (cm *ConsensusModule) ChangeState(nextState string) {
 
 	if nextState == CANDIDATE {
 		cm.log("Becoming a candidate")
-		cm.currentTerm += 1        // use mutex
-		cm.votedFor = cm.server.id // use mutex
-		cm.startElections()        // should I wait here? why wait for election to be over?
+		cm.startElections() // should I wait here? why wait for election to be over?
 	} else if nextState == string(LEADER) {
 		cm.log("Becoming a leader")
+		cm.doLeaderThings()
 	}
+}
+
+func (cm *ConsensusModule) doLeaderThings() {
+	cm.log("Sending heartbeats")
+	cm.mu.Lock()
+	defer cm.mu.Unlock()
 }
 
 func (cm *ConsensusModule) startElections() {
 	cm.log("Starting elections")
+	cm.mu.Lock()
+	// defer cm.mu.Unlock() // this resulted in a lot of problems due to race conditions IMO
+
+	cm.currentTerm += 1
+	cm.votedFor = cm.server.id
+	cm.votesInFavour += 1
+
 	args := RequestVoteArgs{
 		CandidateId: cm.server.id,
 		Term:        cm.currentTerm,
@@ -48,21 +65,28 @@ func (cm *ConsensusModule) startElections() {
 	reply := RequestVoteReply{
 		Response: 0,
 	}
-	cm.votesInFavour += 1 // use mutex
 
-	// this cannot be synchronous, cannot wait for the reply of one peer before requesting another peer
 	for peerId, peerClient := range cm.server.peerClients {
-		cm.log("Sending RequestVote RPC to %v", peerId)
-		err := peerClient.Call("ConsensusModule.RequestVote", args, &reply)
-		if err != nil {
-			cm.log("Error happened while sending RequestVote RPC. Error: %+v", err)
-		}
-		cm.log("Response from peer %v is %v", peerId, reply.Response)
+		cm.wg.Add(1)
 
-		if reply.Response == 1 {
-			cm.votesInFavour += 1 // use mutex
-		}
+		go func(peerId string, peerClient *rpc.Client, wg *sync.WaitGroup) {
+			defer cm.wg.Done()
+			cm.log("Sending RequestVote RPC to %v", peerId)
+			// this can be made prettier
+			err := peerClient.Call("ConsensusModule.RequestVote", args, &reply)
+			if err != nil {
+				cm.log("Error happened while sending RequestVote RPC. Error: %+v", err)
+			}
+			cm.log("Response from peer %v is %v. Total votes: %v", peerId, reply.Response, cm.votesInFavour)
+
+			if reply.Response == 1 {
+				cm.votesInFavour += 1 // use mutex. But how?
+			}
+		}(peerId, peerClient, &cm.wg)
 	}
+
+	cm.wg.Wait() // symbolises that the goroutines are done executing
+	cm.mu.Unlock()
 
 	if hasMajorityVotes(cm) {
 		cm.log("Will become leader")
