@@ -34,30 +34,29 @@ func (cm *ConsensusModule) log(format string, args ...interface{}) {
 func (cm *ConsensusModule) ChangeState(nextState string) {
 	cm.mu.Lock()
 	cm.server.state = nextState
-	cm.mu.Unlock()
 
 	if nextState == CANDIDATE {
 		cm.log("Becoming a candidate")
-		cm.startElections() // should I wait here? why wait for election to be over?
+		cm.startElections()
 	} else if nextState == string(LEADER) {
 		cm.log("Becoming a leader")
 		cm.doLeaderThings()
 	}
 }
 
+// expect cm.mu to be locked
 func (cm *ConsensusModule) doLeaderThings() {
 	cm.log("Sending heartbeats")
-	cm.mu.Lock()
 	defer cm.mu.Unlock()
 	return
 }
 
+// expect cm.mu to be locked
 func (cm *ConsensusModule) startElections() {
-	cm.log("is starting elections, votes for itself")
-	cm.mu.Lock()
 	cm.currentTerm += 1
 	cm.votedFor = cm.server.id
 	cm.votesInFavour += 1
+	cm.log("is starting elections, votes for itself. Vote count so far %v", cm.votesInFavour)
 
 	args := RequestVoteArgs{
 		CandidateId: cm.server.id,
@@ -83,25 +82,27 @@ func (cm *ConsensusModule) startElections() {
 		}(peerId, peerClient, &cm.wg)
 	}
 
-	cm.wg.Wait() // we wait till the goroutine is done executing before unlocking the mutex
+	cm.wg.Wait()
+	hasMajorityVotes := 2*cm.votesInFavour > (len(cm.server.peerIds) + 1)
+	// Reasons for unlocking here
+	// 1) Need the goroutines sending RequestVote RPC to complete so that vote can be safely counted
+	// 2) To maintain code consistency in change state function - starting with locking of mutex for both cases - leader, candidate
 	cm.mu.Unlock()
 
-	if hasMajorityVotes(cm) {
+	if hasMajorityVotes {
 		cm.log("Will become leader")
-		cm.ChangeState(string(LEADER)) // again, should I wait here? or make it run in a separate goroutine
+		cm.ChangeState(string(LEADER)) // should this be a sequential operation? ChangeState leads to different workflow altogether - candidate election or leader sending heartbeats
 	}
-	return
 }
 
 // procedures
 
+// expect cm.mu to be locked already
 func (cm *ConsensusModule) RequestVote(args RequestVoteArgs, reply *RequestVoteReply) error {
-	cm.mu.Lock()
-	defer cm.mu.Unlock()
 	cm.log("Received RequestVote RPC from %v", args.CandidateId)
 
 	// add additional checks here, if the term is valid.
-	if cm.votedFor == nil {
+	if cm.votedFor == nil && cm.votedFor != cm.server.id {
 		cm.votedFor = cm.server.id
 		reply.Granted = true
 	}
@@ -109,10 +110,6 @@ func (cm *ConsensusModule) RequestVote(args RequestVoteArgs, reply *RequestVoteR
 }
 
 // Functions
-
-func hasMajorityVotes(cm *ConsensusModule) bool {
-	return 2*cm.votesInFavour > (len(cm.server.peerIds) + 1)
-}
 
 func NewConsensusModule(server *Server) *ConsensusModule {
 	cm := &ConsensusModule{
