@@ -40,7 +40,6 @@ func (cm *ConsensusModule) ChangeState(nextState string) {
 	cm.server.state = nextState
 
 	if nextState == CANDIDATE {
-		cm.log("Becoming a candidate")
 		cm.startElections()
 	} else if nextState == LEADER {
 		cm.log("Becoming a leader")
@@ -64,7 +63,7 @@ func (cm *ConsensusModule) startElections() {
 	cm.currentTerm += 1
 	cm.votedFor = cm.server.id
 	cm.votesInFavour += 1
-	cm.log("is starting elections, votes for itself. Vote count so far %v", cm.votesInFavour)
+	cm.log("Became a candidate, increased currentTerm, started elections and voted for itself. currentTerm = %v, votesInFavour = %v", cm.currentTerm, cm.votesInFavour)
 
 	args := RequestVoteArgs{
 		CandidateId: cm.server.id,
