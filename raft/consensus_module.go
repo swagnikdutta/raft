@@ -42,15 +42,19 @@ func (cm *ConsensusModule) ChangeState(nextState string) {
 	if nextState == CANDIDATE {
 		cm.log("Becoming a candidate")
 		cm.startElections()
-	} else if nextState == string(LEADER) {
+	} else if nextState == LEADER {
 		cm.log("Becoming a leader")
-		cm.doLeaderThings()
+		cm.sendHeartbeats()
+	} else if nextState == FOLLOWER {
+		cm.log("Becoming a follower")
+		// run election timer
 	}
 }
 
 // expect cm.mu to be locked
-func (cm *ConsensusModule) doLeaderThings() {
+func (cm *ConsensusModule) sendHeartbeats() {
 	cm.log("Sending heartbeats")
+
 	defer cm.mu.Unlock()
 	return
 }
@@ -111,7 +115,7 @@ func (cm *ConsensusModule) startElections() {
 
 	if hasMajorityVotes {
 		cm.log("Will become leader")
-		cm.ChangeState(string(LEADER)) // should this be a sequential operation? ChangeState leads to different workflow altogether - candidate election or leader sending heartbeats
+		cm.ChangeState(LEADER) // should this be a sequential operation? ChangeState leads to different workflow altogether - candidate election or leader sending heartbeats
 	}
 }
 
