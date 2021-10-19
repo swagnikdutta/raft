@@ -25,6 +25,17 @@ type RequestVoteReply struct {
 	Granted bool
 	Term    int
 }
+type AppendEntriesArgs struct {
+	From string
+	To   string
+	Term int
+}
+type AppendEntriesReply struct {
+	From    string
+	To      string
+	Term    int
+	Success bool // false when peer responds negatively to leader's heartbeat (got a new leader)
+}
 
 // Methods
 func (cm *ConsensusModule) log(format string, args ...interface{}) {
@@ -42,7 +53,6 @@ func (cm *ConsensusModule) ChangeState(nextState string) {
 	if nextState == CANDIDATE {
 		cm.startElections()
 	} else if nextState == LEADER {
-		cm.log("Becoming a leader")
 		cm.sendHeartbeats()
 	} else if nextState == FOLLOWER {
 		cm.log("Becoming a follower")
@@ -52,7 +62,23 @@ func (cm *ConsensusModule) ChangeState(nextState string) {
 
 // expect cm.mu to be locked
 func (cm *ConsensusModule) sendHeartbeats() {
-	cm.log("Sending heartbeats")
+	cm.log("Becoming a leader, sending heartbeats")
+
+	args := AppendEntriesArgs{}
+	reply := AppendEntriesReply{}
+
+	for peerId, peerClient := range cm.server.peerClients {
+		cm.wg.Add(1)
+		go func(peerId string, peerClient *rpc.Client, wg *sync.WaitGroup) {
+			defer cm.wg.Done()
+			cm.log("Sending AppendEntries RPC/heart beat to %v", peerId)
+
+			if err := peerClient.Call("ConsensusModule.AppendEntries", args, &reply); err == nil {
+
+			}
+
+		}(peerId, peerClient, &cm.wg)
+	}
 
 	defer cm.mu.Unlock()
 	return
@@ -193,6 +219,13 @@ func (cm *ConsensusModule) RequestVote(args RequestVoteArgs, reply *RequestVoteR
 			reply.Granted = false
 		}
 	}
+	return nil
+}
+
+// expect cm.mu to be locked already
+func (cm *ConsensusModule) AppendEntries(args AppendEntriesArgs, reply *AppendEntriesReply) error {
+	cm.log("Received AppendEntries RPC from %v", args.From)
+
 	return nil
 }
 
