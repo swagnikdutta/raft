@@ -59,7 +59,6 @@ func (cm *ConsensusModule) ChangeState(nextState string) {
 		cm.mu.Unlock()
 		return
 	}
-
 	cm.server.state = nextState
 
 	if nextState == CANDIDATE {
@@ -70,6 +69,21 @@ func (cm *ConsensusModule) ChangeState(nextState string) {
 		cm.log("Became a follower")
 		// run election timer
 	}
+}
+
+func (cm *ConsensusModule) becomeLeader() {
+	// cm.mu.Lock()
+	cm.doWhatALeaderDoes()
+}
+
+func (cm *ConsensusModule) becomeCandidate() {
+	// cm.startElections()
+}
+
+func (cm *ConsensusModule) becomeFollower() {
+	cm.mu.Lock()
+	cm.server.state = FOLLOWER
+	cm.mu.Unlock()
 }
 
 func (cm *ConsensusModule) sendHeartbeatToPeer(peerId string, peerClient *rpc.Client, wg *sync.WaitGroup, args AppendEntriesArgs, reply *AppendEntriesReply) {
@@ -83,7 +97,7 @@ func (cm *ConsensusModule) sendHeartbeatToPeer(peerId string, peerClient *rpc.Cl
 			cm.log("Still the leader BITCH!")
 		} else {
 			cm.currentTerm = reply.Term
-			cm.server.state = FOLLOWER
+			cm.becomeFollower()
 			cm.done <- true
 		}
 		cm.log("Heartbeat response from peer %v is %v ", peerId, reply.Success)
@@ -174,7 +188,7 @@ func (cm *ConsensusModule) startElections() {
 					*/
 					if reply.Term > cm.currentTerm {
 						cm.currentTerm = reply.Term
-						cm.server.state = FOLLOWER
+						cm.becomeFollower()
 					}
 				}
 				cm.log("RequestVote Response from peer %v is %v. Total votes: %v", peerId, reply.Granted, cm.votesInFavour)
@@ -214,7 +228,7 @@ func (cm *ConsensusModule) RequestVote(args RequestVoteArgs, reply *RequestVoteR
 				3. Grant vote to the candidate (requester)
 			*/
 			cm.currentTerm = args.Term
-			cm.server.state = FOLLOWER
+			cm.becomeFollower()
 			cm.votedFor = args.CandidateId
 			// prepare the reply
 			reply.Granted = true
@@ -259,7 +273,7 @@ func (cm *ConsensusModule) RequestVote(args RequestVoteArgs, reply *RequestVoteR
 				3. Grant vote to the candidate (requester)
 			*/
 			cm.currentTerm = args.Term
-			cm.server.state = FOLLOWER
+			cm.becomeFollower()
 			cm.votedFor = args.CandidateId
 			// prepare the reply
 			reply.Granted = true

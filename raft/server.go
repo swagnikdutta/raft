@@ -64,7 +64,8 @@ func (s *Server) HandleElectionTimeout(wg *sync.WaitGroup) {
 	<-s.timer.C
 
 	s.log("Timeout expired!")
-	s.cm.ChangeState(CANDIDATE)
+	// s.cm.ChangeState(CANDIDATE)
+	s.cm.becomeCandidate()
 }
 
 // Functions

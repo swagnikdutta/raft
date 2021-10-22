@@ -43,13 +43,10 @@ func (c *Cluster) connect(n int) {
 		}
 		c.servers[i].ConnectToPeers(peerServers)
 	}
+	fmt.Println("All peers connected!")
 }
 
-func (c *Cluster) init(n int) {
-	c.populatePeers(n)
-	c.connect(n)
-	fmt.Println("All peers connected!")
-
+func (c *Cluster) runTimerOnServers(n int) {
 	var wg sync.WaitGroup
 	wg.Add(n)
 	for i := 0; i < len(c.servers); i++ {
@@ -74,5 +71,7 @@ func CreateCluster(n int) {
 		}(i)
 	}
 	wg.Wait()
-	cluster.init(n)
+	cluster.populatePeers(n)
+	cluster.connect(n)
+	cluster.runTimerOnServers(n)
 }
