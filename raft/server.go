@@ -26,6 +26,9 @@ type Server struct {
 	peerClients map[string]*rpc.Client // a client object for each peer server it wants to communicate with
 
 	wg sync.WaitGroup
+
+	ticker *time.Ticker
+	done   chan bool
 }
 
 // Methods
@@ -51,21 +54,28 @@ func (s *Server) ConnectToPeers(peerServers []*Server) {
 	}
 }
 
-func (s *Server) RunElectionTimer(wg *sync.WaitGroup) {
+func (s *Server) setTheDamnTimer() {
 	start, end := GetTimeoutRange()
-	interval := start + rand.Intn(end) // [start, start + end)
-	s.timer = time.NewTimer(time.Duration(interval) * time.Second)
-	s.log("Timeout set for %v seconds", interval)
-	go s.HandleElectionTimeout(wg)
+	interval := start + rand.Intn(end)
+	s.ticker = time.NewTicker(time.Duration(interval) * time.Second)
+	s.log("Timeout in %v seconds", interval)
 }
 
-func (s *Server) HandleElectionTimeout(wg *sync.WaitGroup) {
+func (s *Server) RunElectionTimer(wg *sync.WaitGroup) {
 	defer wg.Done()
-	<-s.timer.C
+	s.setTheDamnTimer()
 
-	s.log("Timeout expired!")
-	// s.cm.ChangeState(CANDIDATE)
-	s.cm.becomeCandidate()
+	for {
+		select {
+		case <-s.done:
+			s.ticker.Stop()
+			return
+		case <-s.ticker.C:
+			s.log("Timeout expired!")
+			// s.cm.becomeCandidate()
+			s.setTheDamnTimer()
+		}
+	}
 }
 
 // Functions

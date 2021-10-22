@@ -50,9 +50,9 @@ func (c *Cluster) runTimerOnServers(n int) {
 	var wg sync.WaitGroup
 	wg.Add(n)
 	for i := 0; i < len(c.servers); i++ {
-		c.servers[i].RunElectionTimer(&wg) // validate this once
+		go c.servers[i].RunElectionTimer(&wg) // validate this once
 	}
-	wg.Wait()
+	// wg.Wait() This will block
 }
 
 // Functions
