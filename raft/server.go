@@ -30,7 +30,7 @@ type Server struct {
 // Methods
 
 func (s *Server) log(format string, args ...interface{}) {
-	format = fmt.Sprintf("[ %v ] ", s.id) + format
+	format = fmt.Sprintf("[ %v ]\t %v \t", s.id, s.state) + format
 	log.Printf(format, args...)
 }
 
