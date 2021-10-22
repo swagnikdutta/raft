@@ -3,8 +3,10 @@ package raft
 import (
 	"fmt"
 	"log"
+	"math/rand"
 	"net/rpc"
 	"sync"
+	"time"
 )
 
 type ConsensusModule struct {
@@ -15,6 +17,10 @@ type ConsensusModule struct {
 	currentTerm   int
 	votedFor      interface{}
 	votesInFavour int // not sure if this should be a part of the state
+
+	/* Relevant to only leader */
+	ticker *time.Ticker
+	done   chan bool
 }
 
 type RequestVoteArgs struct {
@@ -45,43 +51,88 @@ func (cm *ConsensusModule) log(format string, args ...interface{}) {
 
 func (cm *ConsensusModule) ChangeState(nextState string) {
 	cm.mu.Lock()
-	// if state transition already done (unique scenario, then ignore the rest of the code, unlock the mutex and leave)
-	// this scenario arise when, candidate already moved back to follower state upon receive negative ack from followers
-	// but state change was triggered again due to negative acknowledgement of a competing candidate (with higher term obviously, hence the negative ack)
+
+	if cm.server.state == nextState { // verify
+		// if state transition already done (unique scenario, then ignore the rest of the code, unlock the mutex and leave)
+		// this scenario arise when, candidate already moved back to follower state upon receive negative ack from followers
+		// but state change was triggered again due to negative acknowledgement of a competing candidate (with higher term obviously, hence the negative ack)
+		cm.mu.Unlock()
+		return
+	}
+
 	cm.server.state = nextState
 
 	if nextState == CANDIDATE {
 		cm.startElections()
 	} else if nextState == LEADER {
-		cm.sendHeartbeats()
+		cm.doWhatALeaderDoes()
 	} else if nextState == FOLLOWER {
-		cm.log("Becoming a follower")
+		cm.log("Became a follower")
 		// run election timer
 	}
 }
 
+func (cm *ConsensusModule) sendHeartbeatToPeer(peerId string, peerClient *rpc.Client, wg *sync.WaitGroup, args AppendEntriesArgs, reply *AppendEntriesReply) {
+	defer cm.wg.Done()
+
+	cm.log("Sending heartbeat to %v", peerId)
+	args.To = peerId
+
+	if err := peerClient.Call("ConsensusModule.AppendEntries", args, reply); err == nil {
+		if reply.Success {
+			cm.log("Still the leader BITCH!")
+		} else {
+			cm.currentTerm = reply.Term
+			cm.server.state = FOLLOWER
+			cm.done <- true
+		}
+		cm.log("Heartbeat response from peer %v is %v ", peerId, reply.Success)
+	}
+}
+
+func (cm *ConsensusModule) sendHeartbeats(periodic bool) {
+	defer cm.wg.Done()
+
+	args := AppendEntriesArgs{
+		From: cm.server.id,
+		Term: cm.currentTerm,
+	}
+	reply := AppendEntriesReply{}
+	if !periodic {
+		for peerId, peerClient := range cm.server.peerClients {
+			cm.wg.Add(1)
+			go cm.sendHeartbeatToPeer(peerId, peerClient, &cm.wg, args, &reply)
+		}
+		return
+	}
+	cm.ticker = time.NewTicker(2 * time.Second)
+	for {
+		select {
+		case <-cm.done:
+			cm.ticker.Stop()
+			return
+		case <-cm.ticker.C:
+			for peerId, peerClient := range cm.server.peerClients {
+				cm.wg.Add(1)
+				go cm.sendHeartbeatToPeer(peerId, peerClient, &cm.wg, args, &reply)
+			}
+		}
+	}
+}
+
 // expect cm.mu to be locked
-func (cm *ConsensusModule) sendHeartbeats() {
+func (cm *ConsensusModule) doWhatALeaderDoes() {
 	cm.log("Becoming a leader, sending heartbeats")
 
-	args := AppendEntriesArgs{}
-	reply := AppendEntriesReply{}
+	// this is the first heartbeat after becoming the leader, not sure if I should wait for it to finish
+	cm.wg.Add(1) // I am not sure if I need this
+	go cm.sendHeartbeats(false)
+	cm.wg.Wait() // I am not sure if I need this
 
-	for peerId, peerClient := range cm.server.peerClients {
-		cm.wg.Add(1)
-		go func(peerId string, peerClient *rpc.Client, wg *sync.WaitGroup) {
-			defer cm.wg.Done()
-			cm.log("Sending AppendEntries RPC/heart beat to %v", peerId)
-
-			if err := peerClient.Call("ConsensusModule.AppendEntries", args, &reply); err == nil {
-
-			}
-
-		}(peerId, peerClient, &cm.wg)
-	}
-
-	defer cm.mu.Unlock()
-	return
+	cm.wg.Add(1)
+	go cm.sendHeartbeats(true)
+	cm.wg.Wait()
+	cm.mu.Unlock()
 }
 
 // expect cm.mu to be locked
@@ -126,7 +177,7 @@ func (cm *ConsensusModule) startElections() {
 						cm.server.state = FOLLOWER
 					}
 				}
-				cm.log("Response from peer %v is %v. Total votes: %v", peerId, reply.Granted, cm.votesInFavour)
+				cm.log("RequestVote Response from peer %v is %v. Total votes: %v", peerId, reply.Granted, cm.votesInFavour)
 			}
 		}(peerId, peerClient, &cm.wg)
 	}
@@ -139,7 +190,7 @@ func (cm *ConsensusModule) startElections() {
 	cm.mu.Unlock()
 
 	if hasMajorityVotes {
-		cm.log("Will become leader")
+		cm.log("Won election with majority votes")
 		cm.ChangeState(LEADER) // should this be a sequential operation? ChangeState leads to different workflow altogether - candidate election or leader sending heartbeats
 	}
 }
@@ -152,6 +203,9 @@ func (cm *ConsensusModule) RequestVote(args RequestVoteArgs, reply *RequestVoteR
 
 	if cm.server.state == CANDIDATE {
 		// If the receiver of the RequestVote RPC is a candidate,
+
+		cm.log("args.Term %v, cm.currentTerm %v", args.Term, cm.currentTerm) // debugging why candidate voted for competing candidate
+
 		if args.Term > cm.currentTerm {
 			/*
 				If the candidate requesting the vote has a term greater than the current term of the receiving candidate, then
@@ -210,6 +264,10 @@ func (cm *ConsensusModule) RequestVote(args RequestVoteArgs, reply *RequestVoteR
 			// prepare the reply
 			reply.Granted = true
 			reply.Term = cm.currentTerm
+
+			// TODO
+			// make sure to terminate the heartbeat sending goroutine
+			cm.done <- true
 		} else {
 			/*
 				If the currentTerm of the leader is higher than the currentTerm of the candidate requesting vote,
@@ -224,7 +282,24 @@ func (cm *ConsensusModule) RequestVote(args RequestVoteArgs, reply *RequestVoteR
 
 // expect cm.mu to be locked already
 func (cm *ConsensusModule) AppendEntries(args AppendEntriesArgs, reply *AppendEntriesReply) error {
-	cm.log("Received AppendEntries RPC from %v", args.From)
+	cm.log("Received heartbeat from leader %v", args.From)
+
+	reply.From = cm.server.id
+	reply.To = args.From
+
+	if args.Term < cm.currentTerm {
+		reply.Term = cm.currentTerm
+		reply.Success = false
+	} else {
+		cm.log("Attempting to reset timer")
+		reply.Term = args.Term
+		reply.Success = true
+
+		start, end := GetTimeoutRange()
+		interval := start + rand.Intn(end) // [start, start + end)
+		cm.server.timer = time.NewTimer(time.Duration(interval) * time.Second)
+		cm.log("Timeout set for %v seconds", interval)
+	}
 
 	return nil
 }
