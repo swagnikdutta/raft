@@ -94,13 +94,13 @@ func (cm *ConsensusModule) sendHeartbeatToPeer(peerId string, peerClient *rpc.Cl
 
 	if err := peerClient.Call("ConsensusModule.AppendEntries", args, reply); err == nil {
 		if reply.Success {
-			cm.log("Still the leader BITCH!")
+			cm.log("Still the leader, yayyy!")
 		} else {
 			cm.currentTerm = reply.Term
 			cm.becomeFollower()
 			cm.done <- true
 		}
-		cm.log("Heartbeat response from peer %v is %v ", peerId, reply.Success)
+		// cm.log("Heartbeat response from peer %v is %v ", peerId, reply.Success)
 	}
 }
 
@@ -136,7 +136,7 @@ func (cm *ConsensusModule) sendHeartbeats(periodic bool) {
 
 // expect cm.mu to be locked
 func (cm *ConsensusModule) doWhatALeaderDoes() {
-	cm.log("Becoming a leader, sending heartbeats")
+	cm.log("Became a leader, sending heartbeats")
 
 	// this is the first heartbeat after becoming the leader, not sure if I should wait for it to finish
 	cm.wg.Add(1) // I am not sure if I need this
@@ -213,12 +213,12 @@ func (cm *ConsensusModule) startElections() {
 
 // expect cm.mu to be locked already
 func (cm *ConsensusModule) RequestVote(args RequestVoteArgs, reply *RequestVoteReply) error {
-	cm.log("Received RequestVote RPC from %v", args.CandidateId)
+	// cm.log("Received RequestVote RPC from %v", args.CandidateId)
 
 	if cm.server.state == CANDIDATE {
 		// If the receiver of the RequestVote RPC is a candidate,
 
-		cm.log("args.Term %v, cm.currentTerm %v", args.Term, cm.currentTerm) // debugging why candidate voted for competing candidate
+		// cm.log("args.Term %v, cm.currentTerm %v", args.Term, cm.currentTerm) // debugging why candidate voted for competing candidate
 
 		if args.Term > cm.currentTerm {
 			/*
@@ -296,23 +296,21 @@ func (cm *ConsensusModule) RequestVote(args RequestVoteArgs, reply *RequestVoteR
 
 // expect cm.mu to be locked already
 func (cm *ConsensusModule) AppendEntries(args AppendEntriesArgs, reply *AppendEntriesReply) error {
-	cm.log("Received heartbeat from leader %v", args.From)
-
 	reply.From = cm.server.id
 	reply.To = args.From
 
 	if args.Term < cm.currentTerm {
 		reply.Term = cm.currentTerm
 		reply.Success = false
+		cm.log("Received heartbeat from leader %v", args.From)
+
 	} else {
-		cm.log("Attempting to reset timer")
 		reply.Term = args.Term
 		reply.Success = true
-
 		start, end := GetTimeoutRange()
 		interval := start + rand.Intn(end) // [start, start + end)
-		cm.server.timer = time.NewTimer(time.Duration(interval) * time.Second)
-		cm.log("Timeout set for %v seconds", interval)
+		cm.server.timer.Reset(time.Duration(interval) * time.Second)
+		cm.log("Received heartbeat from leader %v, timeout reset to %v seconds", args.From, interval)
 	}
 
 	return nil
