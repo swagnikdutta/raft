@@ -62,6 +62,6 @@ func (cm *ConsensusModule) becomeCandidate() {
 	if hasMajorityVotes {
 		cm.log("Won election with majority votes")
 		// TODO: make this run in a separate thread
-		cm.ChangeState(LEADER)
+		cm.becomeLeader()
 	}
 }

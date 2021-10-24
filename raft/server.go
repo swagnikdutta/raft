@@ -73,6 +73,7 @@ func (s *Server) StartElectionTimer(wg *sync.WaitGroup) {
 		case <-s.ticker.C:
 			s.log("Timeout!")
 			// TODO: state change should happen in a separate thread
+			// TODO: this is not a one time thing, it's a recurring thing, so check what's the current state?
 			s.cm.becomeCandidate()
 			s.setTimer()
 		}
