@@ -10,7 +10,7 @@ type Cluster struct {
 }
 
 // Methods
-func (c *Cluster) FindServerById(id string) *Server {
+func (c *Cluster) findServerById(id string) *Server {
 	var s *Server
 
 	for i := 0; i < len(c.servers); i++ {
@@ -39,7 +39,7 @@ func (c *Cluster) connect(n int) {
 
 		for j := 0; j < len(server.peerIds); j++ {
 			peerId := server.peerIds[j]
-			peerServers = append(peerServers, c.FindServerById(peerId))
+			peerServers = append(peerServers, c.findServerById(peerId))
 		}
 		c.servers[i].ConnectToPeers(peerServers)
 	}
@@ -67,7 +67,7 @@ func CreateCluster(n int) {
 		wg.Add(1)
 		go func(i int) {
 			defer wg.Done()
-			cluster.servers[i] = NewServer(n, &wg, cluster) // trying to make cm call a method of cluster
+			cluster.servers[i] = NewServer(n, &wg) // trying to make cm call a method of cluster
 		}(i)
 	}
 	wg.Wait()

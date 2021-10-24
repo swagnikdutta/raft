@@ -87,11 +87,10 @@ func generateNewId() string {
 	// return uuid.New().String()
 }
 
-func NewServer(serverCount int, wg *sync.WaitGroup, c *Cluster) *Server {
+func NewServer(serverCount int, wg *sync.WaitGroup) *Server {
 	var err error
 
 	server := new(Server)
-	server.cluster = c
 	server.id = generateNewId()
 	server.state = FOLLOWER
 
