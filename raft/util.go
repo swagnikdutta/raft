@@ -1,13 +1,13 @@
 package raft
 
-// type interval struct {
-// 	start, end int
-// }
+type If bool
 
-// var Ma = map[string]interval{
-// 	"a": interval{2, 3},
-// 	"v": interval{2, 3},
-// }
+func (c If) String(msg1, msg2 string) string {
+	if c {
+		return msg1
+	}
+	return msg2
+}
 
 func GetTimeoutRange() (int, int) {
 	return 3, 5

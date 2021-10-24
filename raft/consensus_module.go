@@ -24,7 +24,8 @@ type ConsensusModule struct {
 }
 
 type RequestVoteArgs struct {
-	CandidateId string
+	From        string
+	CandidateId string // this will be changed to args.From
 	Term        int
 }
 type RequestVoteReply struct {
@@ -61,9 +62,7 @@ func (cm *ConsensusModule) ChangeState(nextState string) {
 	}
 	cm.server.state = nextState
 
-	if nextState == CANDIDATE {
-		cm.startElections()
-	} else if nextState == LEADER {
+	if nextState == LEADER {
 		cm.doWhatALeaderDoes()
 	} else if nextState == FOLLOWER {
 		cm.log("Became a follower")
@@ -74,10 +73,6 @@ func (cm *ConsensusModule) ChangeState(nextState string) {
 func (cm *ConsensusModule) becomeLeader() {
 	// cm.mu.Lock()
 	cm.doWhatALeaderDoes()
-}
-
-func (cm *ConsensusModule) becomeCandidate() {
-	// cm.startElections()
 }
 
 func (cm *ConsensusModule) becomeFollower() {
@@ -149,71 +144,11 @@ func (cm *ConsensusModule) doWhatALeaderDoes() {
 	cm.mu.Unlock()
 }
 
-// expect cm.mu to be locked
-func (cm *ConsensusModule) startElections() {
-	cm.currentTerm += 1
-	cm.votedFor = cm.server.id
-	cm.votesInFavour += 1
-	cm.log("Became a candidate, increased currentTerm, started elections and voted for itself. currentTerm = %v, votesInFavour = %v", cm.currentTerm, cm.votesInFavour)
-
-	args := RequestVoteArgs{
-		CandidateId: cm.server.id,
-		Term:        cm.currentTerm,
-	}
-	reply := RequestVoteReply{
-		Granted: false,
-		// Term: ,
-	}
-
-	for peerId, peerClient := range cm.server.peerClients {
-		cm.wg.Add(1)
-
-		go func(peerId string, peerClient *rpc.Client, wg *sync.WaitGroup) {
-			defer cm.wg.Done()
-			cm.log("Sending RequestVote RPC to %v", peerId)
-
-			if err := peerClient.Call("ConsensusModule.RequestVote", args, &reply); err == nil {
-				if reply.Granted == true {
-					// candidate got vote
-					cm.votesInFavour += 1
-				} else {
-					/*
-						If the candidate didn't get the vote, chances are it's currentTerm is out of date.
-						Scenario 1: peer that denied the vote is a candidate with a higher term
-						Scenario 2: peer that denied the vote is a follower with a higher term
-						Scenario 3: peer that denied the vote is a follower which granted vote to a competing candidate i.e this candidate and the competiting candidate are running elections for the same term (currentTerm)
-
-						The only actionable part here is for scenarios 1 and 2,
-						where this candidate updates its currentTerm and steps down to be a follower
-					*/
-					if reply.Term > cm.currentTerm {
-						cm.currentTerm = reply.Term
-						cm.becomeFollower()
-					}
-				}
-				cm.log("RequestVote Response from peer %v is %v. Total votes: %v", peerId, reply.Granted, cm.votesInFavour)
-			}
-		}(peerId, peerClient, &cm.wg)
-	}
-
-	cm.wg.Wait()
-	hasMajorityVotes := 2*cm.votesInFavour > (len(cm.server.peerIds) + 1)
-	// Reasons for unlocking here
-	// 1) Need the goroutines sending RequestVote RPC to complete so that votes can be safely calculated
-	// 2) To maintain code consistency in ChangeState function - starting with locking of mutex for both cases - leader, candidate
-	cm.mu.Unlock()
-
-	if hasMajorityVotes {
-		cm.log("Won election with majority votes")
-		cm.ChangeState(LEADER) // should this be a sequential operation? ChangeState leads to different workflow altogether - candidate election or leader sending heartbeats
-	}
-}
-
 // procedures
 
 // expect cm.mu to be locked already
 func (cm *ConsensusModule) RequestVote(args RequestVoteArgs, reply *RequestVoteReply) error {
-	// cm.log("Received RequestVote RPC from %v", args.CandidateId)
+	// cm.log("Received RequestVote RPC from %v", args.CandidateId) // this will be changed to args.From
 
 	if cm.server.state == CANDIDATE {
 		// If the receiver of the RequestVote RPC is a candidate,
@@ -229,7 +164,7 @@ func (cm *ConsensusModule) RequestVote(args RequestVoteArgs, reply *RequestVoteR
 			*/
 			cm.currentTerm = args.Term
 			cm.becomeFollower()
-			cm.votedFor = args.CandidateId
+			cm.votedFor = args.CandidateId // this will be changed to args.From
 			// prepare the reply
 			reply.Granted = true
 			reply.Term = cm.currentTerm
@@ -274,7 +209,7 @@ func (cm *ConsensusModule) RequestVote(args RequestVoteArgs, reply *RequestVoteR
 			*/
 			cm.currentTerm = args.Term
 			cm.becomeFollower()
-			cm.votedFor = args.CandidateId
+			cm.votedFor = args.CandidateId // this will be changed to args.From
 			// prepare the reply
 			reply.Granted = true
 			reply.Term = cm.currentTerm
@@ -309,7 +244,8 @@ func (cm *ConsensusModule) AppendEntries(args AppendEntriesArgs, reply *AppendEn
 		reply.Success = true
 		start, end := GetTimeoutRange()
 		interval := start + rand.Intn(end) // [start, start + end)
-		cm.server.timer.Reset(time.Duration(interval) * time.Second)
+
+		cm.server.ticker.Reset(time.Duration(interval) * time.Second)
 		cm.log("Received heartbeat from leader %v, timeout reset to %v seconds", args.From, interval)
 	}
 

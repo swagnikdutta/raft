@@ -54,16 +54,16 @@ func (s *Server) ConnectToPeers(peerServers []*Server) {
 	}
 }
 
-func (s *Server) setTheDamnTimer() {
+func (s *Server) setTimer() {
 	start, end := GetTimeoutRange()
 	interval := start + rand.Intn(end)
 	s.ticker = time.NewTicker(time.Duration(interval) * time.Second)
 	s.log("Timeout in %v seconds", interval)
 }
 
-func (s *Server) RunElectionTimer(wg *sync.WaitGroup) {
+func (s *Server) StartElectionTimer(wg *sync.WaitGroup) {
 	defer wg.Done()
-	s.setTheDamnTimer()
+	s.setTimer()
 
 	for {
 		select {
@@ -71,9 +71,10 @@ func (s *Server) RunElectionTimer(wg *sync.WaitGroup) {
 			s.ticker.Stop()
 			return
 		case <-s.ticker.C:
-			s.log("Timeout expired!")
-			// s.cm.becomeCandidate()
-			s.setTheDamnTimer()
+			s.log("Timeout!")
+			// TODO: state change should happen in a separate thread
+			s.cm.becomeCandidate()
+			s.setTimer()
 		}
 	}
 }
