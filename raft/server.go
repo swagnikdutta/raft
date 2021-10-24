@@ -19,6 +19,7 @@ type Server struct {
 	cm      *ConsensusModule
 	timer   *time.Timer
 	state   string
+	cluster *Cluster
 
 	listener    net.Listener           // to listen for incoming connections
 	rpcServer   *rpc.Server            // to server incoming connections
@@ -50,8 +51,9 @@ func (s *Server) ConnectToPeers(peerServers []*Server) {
 	}
 }
 
-func (s *Server) SetTimer(wg *sync.WaitGroup) {
-	interval := 3 + rand.Intn(3)
+func (s *Server) RunElectionTimer(wg *sync.WaitGroup) {
+	start, end := GetTimeoutRange()
+	interval := start + rand.Intn(end) // [start, start + end)
 	s.timer = time.NewTimer(time.Duration(interval) * time.Second)
 	s.log("Timeout set for %v seconds", interval)
 	go s.HandleElectionTimeout(wg)
@@ -73,10 +75,11 @@ func generateNewId() string {
 	// return uuid.New().String()
 }
 
-func NewServer(serverCount int, wg *sync.WaitGroup) *Server {
+func NewServer(serverCount int, wg *sync.WaitGroup, c *Cluster) *Server {
 	var err error
 
 	server := new(Server)
+	server.cluster = c
 	server.id = generateNewId()
 	server.state = FOLLOWER
 
