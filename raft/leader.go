@@ -8,6 +8,7 @@ import (
 
 func (cm *ConsensusModule) becomeLeader() {
 	cm.mu.Lock()
+	cm.server.state = LEADER
 	cm.doWhatALeaderDoes()
 }
 
