@@ -8,12 +8,8 @@ import (
 
 func (cm *ConsensusModule) becomeLeader() {
 	cm.mu.Lock()
-	cm.server.state = LEADER
-	cm.doWhatALeaderDoes()
-}
 
-// expect cm.mu to be locked
-func (cm *ConsensusModule) doWhatALeaderDoes() {
+	cm.server.state = LEADER
 	cm.log("Became a leader, sending heartbeats")
 
 	// this is the first heartbeat after becoming the leader, not sure if I should wait for it to finish

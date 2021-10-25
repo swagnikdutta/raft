@@ -11,7 +11,6 @@ func (cm *ConsensusModule) requestVote(peerId string, peerClient *rpc.Client, wg
 
 	if err := peerClient.Call("ConsensusModule.RequestVote", args, &reply); err == nil {
 		result := If(reply.Granted).String("granted", "denied")
-		cm.log("Peer %v %v vote. Total votesInFavour = %v", peerId, result, cm.votesInFavour)
 
 		if reply.Granted == true {
 			cm.votesInFavour += 1
@@ -29,6 +28,7 @@ func (cm *ConsensusModule) requestVote(peerId string, peerClient *rpc.Client, wg
 				cm.becomeFollower()
 			}
 		}
+		cm.log("Peer %v %v vote. Total votesInFavour = %v", peerId, result, cm.votesInFavour)
 	}
 }
 
@@ -39,7 +39,7 @@ func (cm *ConsensusModule) becomeCandidate() {
 	cm.log("Became a candidate, starting elections ...")
 	cm.currentTerm += 1
 	cm.votedFor = cm.server.id
-	cm.votesInFavour += 1
+	cm.votesInFavour = 1
 	cm.log("currentTerm = %v, votesInFavour = %v", cm.currentTerm, cm.votesInFavour)
 
 	args := RequestVoteArgs{
