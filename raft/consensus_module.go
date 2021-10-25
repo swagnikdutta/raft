@@ -15,7 +15,7 @@ type ConsensusModule struct {
 	server        *Server
 	currentTerm   int
 	votedFor      interface{}
-	votesInFavour int // not sure if this should be a part of the state
+	votesInFavour int
 
 	/* Relevant to only leader */
 	ticker *time.Ticker
@@ -49,17 +49,12 @@ func (cm *ConsensusModule) log(format string, args ...interface{}) {
 	log.Printf(format, args...)
 }
 
-// procedures
+// Procedures
 
 // expect cm.mu to be locked already
 func (cm *ConsensusModule) RequestVote(args RequestVoteArgs, reply *RequestVoteReply) error {
-	// cm.log("Received RequestVote RPC from %v", args.CandidateId) // this will be changed to args.From
 
 	if cm.server.state == CANDIDATE {
-		// If the receiver of the RequestVote RPC is a candidate,
-
-		// cm.log("args.Term %v, cm.currentTerm %v", args.Term, cm.currentTerm) // debugging why candidate voted for competing candidate
-
 		if args.Term > cm.currentTerm {
 			/*
 				If the candidate requesting the vote has a term greater than the current term of the receiving candidate, then
@@ -70,7 +65,6 @@ func (cm *ConsensusModule) RequestVote(args RequestVoteArgs, reply *RequestVoteR
 			cm.currentTerm = args.Term
 			cm.becomeFollower()
 			cm.votedFor = args.CandidateId // this will be changed to args.From
-			// prepare the reply
 			reply.Granted = true
 			reply.Term = cm.currentTerm
 		} else {
@@ -82,7 +76,6 @@ func (cm *ConsensusModule) RequestVote(args RequestVoteArgs, reply *RequestVoteR
 			reply.Term = cm.currentTerm
 		}
 	} else if cm.server.state == FOLLOWER {
-		// If the receiver of the RequestVote RPC is a follower
 		if args.Term > cm.currentTerm {
 			/*
 				If follower's currentTerm is lesser than the currentTerm of the candidate requesting vote
@@ -90,7 +83,6 @@ func (cm *ConsensusModule) RequestVote(args RequestVoteArgs, reply *RequestVoteR
 				2. Grant vote to candidate (requester)
 			*/
 			cm.currentTerm = args.Term
-			// prepare the reply
 			reply.Granted = true
 			reply.Term = cm.currentTerm
 		} else {
@@ -101,10 +93,7 @@ func (cm *ConsensusModule) RequestVote(args RequestVoteArgs, reply *RequestVoteR
 			reply.Granted = false
 			reply.Term = cm.currentTerm
 		}
-	} else {
-		// If the receiver of the RequestVote RPC is a leader,
-
-		// Leader, on discovering some other node with a higher term number, steps down and becomes a follower
+	} else if cm.server.state == LEADER {
 		if args.Term > cm.currentTerm {
 			/*
 				If the candidate requesting the vote has a term greater than the current term of the leader, then
@@ -115,7 +104,6 @@ func (cm *ConsensusModule) RequestVote(args RequestVoteArgs, reply *RequestVoteR
 			cm.currentTerm = args.Term
 			cm.becomeFollower()
 			cm.votedFor = args.CandidateId // this will be changed to args.From
-			// prepare the reply
 			reply.Granted = true
 			reply.Term = cm.currentTerm
 
@@ -134,26 +122,64 @@ func (cm *ConsensusModule) RequestVote(args RequestVoteArgs, reply *RequestVoteR
 	return nil
 }
 
-// expect cm.mu to be locked already
+// cm.mu is locked ---- NOOOOOOOO got error -> fatal error: sync: unlock of unlocked mutex
 func (cm *ConsensusModule) AppendEntries(args AppendEntriesArgs, reply *AppendEntriesReply) error {
+	cm.log("Received heartbeat from leader %v", args.From)
+
 	reply.From = cm.server.id
 	reply.To = args.From
-
+	/*
+		The receiver of a heartbeat can be
+		1) Follower
+		2) Candidate
+		3) Obsolete leader - A leader who got disconnected initially, but
+			came back to life later and now thinks of itself as the legitimate leader
+	*/
 	if args.Term < cm.currentTerm {
+		/*
+			If the leader sending the heartbeat has an obsolete term,
+			reject the heartbeat right away, and let the sender know of the updated term (known to this server).
+		*/
 		reply.Term = cm.currentTerm
 		reply.Success = false
 		cm.log("Received heartbeat from leader %v", args.From)
-
 	} else {
-		reply.Term = args.Term
-		reply.Success = true
+		/*
+			If the term of the leader sending heartbeat is >= the term known to this server
+			1) update currentTerm - receiver can be leader(obsolete), candidate, follower
+			2) If the receiver of the heartbeat is a candidate or an obsolete leader, step down to be follower
+			3) reset the timer
+			TODO: // check if there's any definite pattern to do the above
+		*/
+
+		if args.Term > cm.currentTerm {
+			/*
+				TLDR: First heartbeat?
+
+				On receiving the first heartbeat, the currentTerm of the receiver will be synced with that of the leader.
+				Further heartbeats won't change the value of the receiver's currentTerm as it is in sync with that of the leader, for the entirety of this term.
+				We can prevent unnecessary writes by putting the assignment inside this block
+			*/
+			cm.currentTerm = args.Term
+			cm.log("Updated currentTerm to %v", args.Term)
+		}
+
+		// TODO: put this in a separate function, make it a one line thing
 		start, end := GetTimeoutRange()
 		interval := start + rand.Intn(end) // [start, start + end)
-
 		cm.server.ticker.Reset(time.Duration(interval) * time.Second)
-		cm.log("Received heartbeat from leader %v, timeout reset to %v seconds", args.From, interval)
-	}
+		cm.log("Timeout reset to %v seconds", interval)
 
+		if cm.server.state == CANDIDATE || cm.server.state == LEADER {
+			cm.log("Stepping down as %v, becoming a follower", cm.server.state)
+			// TODO: need serious debugging
+			// cm.mu.Unlock() // because the becomeFollower function locks the mutex, that was the idea, but uncommenting this line gives error
+			cm.becomeFollower()
+		}
+
+		reply.Term = args.Term
+		reply.Success = true
+	}
 	return nil
 }
 

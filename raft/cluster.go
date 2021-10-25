@@ -22,7 +22,7 @@ func (c *Cluster) findServerById(id string) *Server {
 	return s
 }
 
-func (c *Cluster) populatePeers(n int) {
+func (c *Cluster) populatePeerInfo(n int) {
 	for i := 0; i < n; i++ {
 		for j := 0; j < n; j++ {
 			if c.servers[i].id != c.servers[j].id {
@@ -32,7 +32,7 @@ func (c *Cluster) populatePeers(n int) {
 	}
 }
 
-func (c *Cluster) connect(n int) {
+func (c *Cluster) connectAllServers(n int) {
 	for i := 0; i < n; i++ {
 		var peerServers []*Server
 		server := c.servers[i]
@@ -71,7 +71,7 @@ func CreateCluster(n int) {
 		}(i)
 	}
 	wg.Wait()
-	cluster.populatePeers(n)
-	cluster.connect(n)
+	cluster.populatePeerInfo(n)
+	cluster.connectAllServers(n)
 	cluster.runTimerOnServers(n)
 }

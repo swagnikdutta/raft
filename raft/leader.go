@@ -23,6 +23,7 @@ func (cm *ConsensusModule) becomeLeader() {
 	cm.mu.Unlock()
 }
 
+// cm.mu is locked
 func (cm *ConsensusModule) sendHeartbeatToPeer(peerId string, peerClient *rpc.Client, wg *sync.WaitGroup, args AppendEntriesArgs, reply *AppendEntriesReply) {
 	defer cm.wg.Done()
 
@@ -30,17 +31,22 @@ func (cm *ConsensusModule) sendHeartbeatToPeer(peerId string, peerClient *rpc.Cl
 	args.To = peerId
 
 	if err := peerClient.Call("ConsensusModule.AppendEntries", args, reply); err == nil {
+		cm.log("Heartbeat response from peer %v is %v ", peerId, reply.Success)
+
 		if reply.Success {
+			// TODO: Think on this part, try to come up with a more appropriate message
 			cm.log("Still the leader, yayyy!")
 		} else {
+			cm.log("Stepping down as leader, becoming a follower")
 			cm.currentTerm = reply.Term
+			// TODO: make state change happen in seprarate thread
 			cm.becomeFollower()
 			cm.done <- true
 		}
-		// cm.log("Heartbeat response from peer %v is %v ", peerId, reply.Success)
 	}
 }
 
+// cm.mu is locked
 func (cm *ConsensusModule) sendHeartbeats(periodic bool) {
 	defer cm.wg.Done()
 
