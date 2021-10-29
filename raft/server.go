@@ -6,6 +6,7 @@ import (
 	"math/rand"
 	"net"
 	"net/rpc"
+	"os"
 	"strconv"
 	"sync"
 	"time"
@@ -29,13 +30,16 @@ type Server struct {
 
 	ticker *time.Ticker
 	done   chan bool
+
+	logs *os.File
 }
 
 // Methods
 
 func (s *Server) log(format string, args ...interface{}) {
-	format = fmt.Sprintf("[ %v ]\t %v \t", s.id, s.state) + format
+	format = fmt.Sprintf("[ %v ]\t %v \t", s.id, s.state) + format + "\n"
 	log.Printf(format, args...)
+	fmt.Fprintf(s.logs, format, args...)
 }
 
 func (s *Server) ConnectToPeers(peerServers []*Server) {
@@ -94,6 +98,7 @@ func NewServer(serverCount int, wg *sync.WaitGroup) *Server {
 	server := new(Server)
 	server.id = generateNewId()
 	server.state = FOLLOWER
+	server.logs, _ = os.Create(server.id + ".txt")
 
 	server.peerClients = make(map[string]*rpc.Client)
 	server.rpcServer = rpc.NewServer()
