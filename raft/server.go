@@ -75,8 +75,16 @@ func (s *Server) StartElectionTimer(wg *sync.WaitGroup) {
 		case <-s.ticker.C:
 			s.log("Timeout!")
 			// TODO: state change should happen in a separate thread
-			// TODO: this is not a one time thing, it's a recurring thing, so check what's the current state?
-			s.cm.becomeCandidate()
+			if s.state == FOLLOWER {
+				s.cm.becomeCandidate()
+			} else if s.state == CANDIDATE {
+				// From the visualization, if the candidate times out, it increases its term and stays as a candidate.
+				// The time interval for Request vote RPC is reset as well (observed this).
+				// TODO: This part is not handled yet - because I never let this scenario happen.
+			} else if s.state == LEADER {
+				// Leader has no timer on it. This is not handled I think.
+				// TODO: remove timer when a node becomes a leader, maybe use the done channel. Once done, remove this else block.
+			}
 			s.setTimer()
 		}
 	}
