@@ -24,10 +24,9 @@ func (c *Cluster) findServerById(id string) *Server {
 
 func (c *Cluster) populatePeerInfo(n int) {
 	for i := 0; i < n; i++ {
-		for j := 0; j < n; j++ {
-			if c.servers[i].id != c.servers[j].id {
-				c.servers[i].peerIds = append(c.servers[i].peerIds, c.servers[j].id)
-			}
+		for j := i + 1; j < n; j++ {
+			c.servers[i].peerIds = append(c.servers[i].peerIds, c.servers[j].id)
+			c.servers[j].peerIds = append(c.servers[j].peerIds, c.servers[i].id)
 		}
 	}
 }
