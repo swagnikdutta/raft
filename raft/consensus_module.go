@@ -45,8 +45,9 @@ type AppendEntriesReply struct {
 
 // Methods
 func (cm *ConsensusModule) log(format string, args ...interface{}) {
-	format = fmt.Sprintf("[ %v ]\t %v \t", cm.server.id, cm.server.state) + format
+	format = fmt.Sprintf("[ %v ]\t %v \t", cm.server.id, cm.server.state) + format + "\n"
 	log.Printf(format, args...)
+	fmt.Fprintf(cm.server.logs, format, args...)
 }
 
 // Procedures
