@@ -43,9 +43,7 @@ func (s *Server) log(format string, args ...interface{}) {
 }
 
 func (s *Server) ConnectToPeers(peerServers []*Server) {
-	for i := 0; i < len(peerServers); i++ {
-		peerServer := peerServers[i]
-
+	for _, peerServer := range peerServers {
 		if s.peerClients[peerServer.id] == nil {
 			listenerAddress := peerServer.listener.Addr()
 			client, err := rpc.Dial(listenerAddress.Network(), listenerAddress.String())

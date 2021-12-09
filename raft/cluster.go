@@ -13,9 +13,9 @@ type Cluster struct {
 func (c *Cluster) findServerById(id string) *Server {
 	var s *Server
 
-	for i := 0; i < len(c.servers); i++ {
-		if c.servers[i].id == id {
-			s = c.servers[i]
+	for _, server := range c.servers {
+		if server.id == id {
+			s = server
 			break
 		}
 	}
@@ -34,10 +34,8 @@ func (c *Cluster) populatePeerInfo(n int) {
 func (c *Cluster) connectAllServers(n int) {
 	for i := 0; i < n; i++ {
 		var peerServers []*Server
-		server := c.servers[i]
 
-		for j := 0; j < len(server.peerIds); j++ {
-			peerId := server.peerIds[j]
+		for _, peerId := range c.servers[i].peerIds {
 			peerServers = append(peerServers, c.findServerById(peerId))
 		}
 		c.servers[i].ConnectToPeers(peerServers)
