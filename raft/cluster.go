@@ -46,8 +46,8 @@ func (c *Cluster) connectAllServers(n int) {
 func (c *Cluster) runTimerOnServers(n int) {
 	var wg sync.WaitGroup
 	wg.Add(n)
-	for i := 0; i < len(c.servers); i++ {
-		go c.servers[i].StartElectionTimer(&wg) // validate this once
+	for _, server := range c.servers {
+		go server.StartElectionTimer(&wg) // validate this once
 	}
 	wg.Wait()
 }
