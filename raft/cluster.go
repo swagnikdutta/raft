@@ -7,6 +7,7 @@ import (
 
 type Cluster struct {
 	servers []*Server
+	wg      sync.WaitGroup
 }
 
 // Methods
@@ -44,12 +45,11 @@ func (c *Cluster) connectAllServers(n int) {
 }
 
 func (c *Cluster) runTimerOnServers(n int) {
-	var wg sync.WaitGroup
-	wg.Add(n)
+	c.wg.Add(n)
 	for _, server := range c.servers {
-		go server.StartElectionTimer(&wg) // validate this once
+		go server.StartElectionTimer(&c.wg) // validate this once
 	}
-	wg.Wait()
+	c.wg.Wait()
 }
 
 // Functions
@@ -59,15 +59,15 @@ func CreateCluster(n int) {
 	cluster.servers = make([]*Server, n)
 
 	// iterate n times, create n servers, a
-	var wg sync.WaitGroup
+
 	for i := 0; i < n; i++ {
-		wg.Add(1)
+		cluster.wg.Add(1)
 		go func(i int) {
-			defer wg.Done()
-			cluster.servers[i] = NewServer(n, &wg) // trying to make cm call a method of cluster
+			defer cluster.wg.Done()
+			cluster.servers[i] = NewServer(n, &cluster.wg) // trying to make cm call a method of cluster
 		}(i)
 	}
-	wg.Wait()
+	cluster.wg.Wait()
 	cluster.populatePeerInfo(n)
 	cluster.connectAllServers(n)
 	cluster.runTimerOnServers(n)
