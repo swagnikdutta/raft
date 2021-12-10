@@ -32,6 +32,10 @@ go run main.go
 
 ### See in action
 
+A cluster with three servers or nodes. The server with `id = 101` wins the election to become the leader and starts sending heartbeats to its followers - `102` and `103` at fixed intervals. 
+
+The heartbeat resets the timer on the followers, preventing them from transitioning into candidate state, thereby enabling the leader to exercise supremacy.
+
 ![](https://github.com/swagnikdutta/repository-assets/blob/main/leader-election-raft.gif)
 
 
