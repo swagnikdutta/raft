@@ -7,55 +7,49 @@ import (
 
 type Cluster struct {
 	servers []*Server
+	wg      sync.WaitGroup
 }
 
 // Methods
 func (c *Cluster) findServerById(id string) *Server {
 	var s *Server
 
-	for i := 0; i < len(c.servers); i++ {
-		if c.servers[i].id == id {
-			s = c.servers[i]
+	for _, server := range c.servers {
+		if server.id == id {
+			s = server
 			break
 		}
 	}
 	return s
 }
 
-func (c *Cluster) populatePeers(n int) {
+func (c *Cluster) populatePeerInfo(n int) {
 	for i := 0; i < n; i++ {
-		for j := 0; j < n; j++ {
-			if c.servers[i].id != c.servers[j].id {
-				c.servers[i].peerIds = append(c.servers[i].peerIds, c.servers[j].id)
-			}
+		for j := i + 1; j < n; j++ {
+			c.servers[i].peerIds = append(c.servers[i].peerIds, c.servers[j].id)
+			c.servers[j].peerIds = append(c.servers[j].peerIds, c.servers[i].id)
 		}
 	}
 }
 
-func (c *Cluster) connect(n int) {
+func (c *Cluster) connectAllServers(n int) {
 	for i := 0; i < n; i++ {
 		var peerServers []*Server
-		server := c.servers[i]
 
-		for j := 0; j < len(server.peerIds); j++ {
-			peerId := server.peerIds[j]
+		for _, peerId := range c.servers[i].peerIds {
 			peerServers = append(peerServers, c.findServerById(peerId))
 		}
 		c.servers[i].ConnectToPeers(peerServers)
 	}
+	fmt.Println("All peers connected!")
 }
 
-func (c *Cluster) init(n int) {
-	c.populatePeers(n)
-	c.connect(n)
-	fmt.Println("All peers connected!")
-
-	var wg sync.WaitGroup
-	wg.Add(n)
-	for i := 0; i < len(c.servers); i++ {
-		c.servers[i].SetTimer(&wg) // validate this once
+func (c *Cluster) runTimerOnServers(n int) {
+	c.wg.Add(n)
+	for _, server := range c.servers {
+		go server.StartElectionTimer(&c.wg) // validate this once
 	}
-	wg.Wait()
+	c.wg.Wait()
 }
 
 // Functions
@@ -65,14 +59,16 @@ func CreateCluster(n int) {
 	cluster.servers = make([]*Server, n)
 
 	// iterate n times, create n servers, a
-	var wg sync.WaitGroup
+
 	for i := 0; i < n; i++ {
-		wg.Add(1)
+		cluster.wg.Add(1)
 		go func(i int) {
-			defer wg.Done()
-			cluster.servers[i] = NewServer(n, &wg)
+			defer cluster.wg.Done()
+			cluster.servers[i] = NewServer(n, &cluster.wg) // trying to make cm call a method of cluster
 		}(i)
 	}
-	wg.Wait()
-	cluster.init(n)
+	cluster.wg.Wait()
+	cluster.populatePeerInfo(n)
+	cluster.connectAllServers(n)
+	cluster.runTimerOnServers(n)
 }
