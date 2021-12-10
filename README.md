@@ -32,4 +32,4 @@ go run main.go
 
 ### See in action
 
-![](https://github.com/swagnikdutta/repository-assets/blob/main/raft%20leader%20election%20video.mov)
+![](https://github.com/swagnikdutta/repository-assets/blob/main/raft%20leader%20election.mp4)
