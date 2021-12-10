@@ -21,17 +21,15 @@ I started this project while I was attending [The Recurse Center](https://www.re
 
 As of now, only the leader election part has been completed and the rest are being developed.
 
-<!-- ### How to run
+### How to run
 
 ```bash
 git clone https://github.com/swagnikdutta/raft.git
 cd raft
 go run main.go
 ```
- -->
- 
- ### See in action
- 
- 
 
 
+### See in action
+
+![](https://imgur.com/a/7qqlPNi)
