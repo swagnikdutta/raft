@@ -32,4 +32,6 @@ go run main.go
 
 ### See in action
 
-<video src='https://github.com/swagnikdutta/repository-assets/blob/main/raft%20leader%20election.mp4' width=180/>
+![](https://github.com/swagnikdutta/repository-assets/blob/main/leader-election-raft.gif)
+
+
